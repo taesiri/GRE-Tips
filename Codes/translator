@@ -1,0 +1,322 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "name": "Copy of translator.ipynb",
+      "version": "0.3.2",
+      "provenance": [],
+      "collapsed_sections": [],
+      "toc_visible": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    }
+  },
+  "cells": [
+    {
+      "metadata": {
+        "id": "x-zpGSNQq_uK",
+        "colab_type": "text"
+      },
+      "cell_type": "markdown",
+      "source": [
+        "## Translatation tools for Google Sheets\n",
+        "\n",
+        "### Connect to Google Drive to read JSON Credentials"
+      ]
+    },
+    {
+      "metadata": {
+        "id": "ncFP-4EpVWDR",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "cell_type": "code",
+      "source": [
+        "# Install the PyDrive wrapper & import libraries.\n",
+        "# This only needs to be done once per notebook.\n",
+        "!pip install -U -q PyDrive\n",
+        "from pydrive.auth import GoogleAuth\n",
+        "from pydrive.drive import GoogleDrive\n",
+        "from google.colab import auth\n",
+        "from oauth2client.client import GoogleCredentials\n",
+        "\n",
+        "# Authenticate and create the PyDrive client.\n",
+        "# This only needs to be done once per notebook.\n",
+        "auth.authenticate_user()\n",
+        "gauth = GoogleAuth()\n",
+        "gauth.credentials = GoogleCredentials.get_application_default()\n",
+        "drive = GoogleDrive(gauth)\n",
+        "\n",
+        "# Download a file based on its file ID.\n",
+        "#\n",
+        "# A file ID looks like: laggVyWshwcyP6kEI-y_W3P8D26sz\n",
+        "file_id = 'FILE_ID_HERE'\n",
+        "downloaded = drive.CreateFile({'id': file_id})\n",
+        "print('Downloaded content \"{}\"'.format(downloaded.GetContentString()))\n",
+        "\n",
+        "with open(\"client_secret.json\", \"w\") as text_file:\n",
+        "    text_file.write(downloaded.GetContentString())"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "metadata": {
+        "id": "Y9CGQ8T5rW_W",
+        "colab_type": "text"
+      },
+      "cell_type": "markdown",
+      "source": [
+        "### Install gspread tools to Connect to Google Spread Sheets\n"
+      ]
+    },
+    {
+      "metadata": {
+        "id": "gW-ck_gvZ5fB",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "cell_type": "code",
+      "source": [
+        "!pip install gspread oauth2client"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "metadata": {
+        "id": "yQk_HV7MSjt6",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "cell_type": "code",
+      "source": [
+        "import gspread\n",
+        "from oauth2client.service_account import ServiceAccountCredentials\n",
+        "\n",
+        "\n",
+        "scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']\n",
+        "creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)\n",
+        "client = gspread.authorize(creds)\n",
+        "\n",
+        "\n",
+        "sheet = client.open('GRE high-frequency Words').worksheet(\"GRE-Top357\")\n",
+        "data = sheet.get_all_records()\n",
+        "print(data)\n",
+        "\n",
+        "\n",
+        "words = sheet.col_values(1)\n",
+        "defs = sheet.col_values(2)\n",
+        "print(\"DONE\")"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "metadata": {
+        "id": "iCTbOTPNqxWy",
+        "colab_type": "text"
+      },
+      "cell_type": "markdown",
+      "source": [
+        "### Grabbing Word Definations and Prononciations from Cambridge Dictionary"
+      ]
+    },
+    {
+      "metadata": {
+        "id": "-qwECON3b25F",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "cell_type": "code",
+      "source": [
+        "import re\n",
+        "import sys\n",
+        "\n",
+        "from urllib.request import urlopen\n",
+        "from bs4 import BeautifulSoup\n",
+        "\n",
+        "CAMBRIDGE_ENDPOINT = \"http://dictionary.cambridge.org/dictionary/english\"\n",
+        "\n",
+        "def grab_def(word):\n",
+        "  try:\n",
+        "    term = re.sub(r\"\\s\", \"-\", word)\n",
+        "    cdict = urlopen(\"/\".join([CAMBRIDGE_ENDPOINT, term]))\n",
+        "    soup = soup = BeautifulSoup(cdict, 'html.parser')\n",
+        "\n",
+        "    desc = soup.find(attrs={\"name\": \"description\"})['content']\n",
+        "    example = soup.find(attrs={\"title\": \"Example\"})\n",
+        "\n",
+        "    desc = desc[:-15].split(\":\")\n",
+        "    return desc[1]\n",
+        "  except:\n",
+        "    return \"NA\"\n",
+        "  \n",
+        "  \n",
+        "def grab_pron(word):\n",
+        "  try:\n",
+        "    term = re.sub(r\"\\s\", \"-\", word)\n",
+        "    cdict = urlopen(\"/\".join([CAMBRIDGE_ENDPOINT, term]))\n",
+        "    soup = soup = BeautifulSoup(cdict, 'html.parser')\n",
+        "\n",
+        "    return 'https://dictionary.cambridge.org' + soup.find(attrs={\"class\": \"circle circle-btn sound audio_play_button\"})['data-src-mp3'] \n",
+        "  except:\n",
+        "    return 'NA'"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "metadata": {
+        "id": "7LOL1xwV7fr5",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "cell_type": "code",
+      "source": [
+        "words_def = [grab_def(x).replace('1. ', '').replace('2. ', ' -- ') for x in words]\n",
+        "prons = [grab_pron(x) for x in words]"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "metadata": {
+        "id": "_WXcHO3raVvA",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "cell_type": "code",
+      "source": [
+        "# Updaing Cells\n",
+        "\n",
+        "for i in range(1,len(words_def)+1):\n",
+        "  sheet.update_cell(i, 3, words_def[i-1])\n",
+        "  sheet.update_cell(i, 4, prons[i-1])"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "metadata": {
+        "id": "mEdAc81oryez",
+        "colab_type": "text"
+      },
+      "cell_type": "markdown",
+      "source": [
+        "### Connect Google Drive to Save Audio Files"
+      ]
+    },
+    {
+      "metadata": {
+        "id": "So5QsXOsGd69",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "cell_type": "code",
+      "source": [
+        "# Install the PyDrive wrapper & import libraries.\n",
+        "# This only needs to be done once in a notebook.\n",
+        "!pip install -U -q PyDrive\n",
+        "from pydrive.auth import GoogleAuth\n",
+        "from pydrive.drive import GoogleDrive\n",
+        "from google.colab import auth\n",
+        "from oauth2client.client import GoogleCredentials\n",
+        "\n",
+        "# Authenticate and create the PyDrive client.\n",
+        "# This only needs to be done once in a notebook.\n",
+        "auth.authenticate_user()\n",
+        "gauth = GoogleAuth()\n",
+        "gauth.credentials = GoogleCredentials.get_application_default()\n",
+        "drive = GoogleDrive(gauth)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "metadata": {
+        "id": "03K1LwtMitP_",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "cell_type": "code",
+      "source": [
+        "!pip install wget\n",
+        "!pip install gtts\n",
+        "!apt install -y ffmpeg"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "metadata": {
+        "id": "S5xLpp7UkWTx",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "cell_type": "code",
+      "source": [
+        "# drive.ListFile({'q': \"'root' in parents and trashed=false\"}).GetList()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "metadata": {
+        "id": "AT7E3YlnvqkF",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "cell_type": "code",
+      "source": [
+        "# defs[0].replace('v.', 'verb. ').replace('adj.', 'adjective. ').replace('n.', 'noun. ').replace('adv.', 'adverb. ')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "metadata": {
+        "id": "CJFTVhAXgvoL",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "cell_type": "code",
+      "source": [
+        "import os\n",
+        "import wget\n",
+        "from gtts import gTTS\n",
+        "\n",
+        "\n",
+        "listed = drive.ListFile({'q': \"'root' in parents and trashed=false\"}).GetList()\n",
+        "\n",
+        "for i in range(len(words)):\n",
+        "    word = words[i] \n",
+        "    wdef = defs[i].replace('v.', 'verb. ').replace('adj.', 'adjective. ').replace('n.', 'noun. ').replace('adv.', 'adverb. ')\n",
+        "\n",
+        "    file_name = word + '.mp3'\n",
+        "    tts = gTTS(wdef)\n",
+        "    tts.save(word + '_def.mp3')\n",
+        "    \n",
+        "    print(word)\n",
+        "    try:\n",
+        "      wget.download(prons[i], file_name) \n",
+        "    \n",
+        "      os.system(\"ffmpeg -i \\\"concat:{0}|{1}\\\" -acodec copy {2}\".format(file_name, word + '_def.mp3', word + '_final.mp3' ))\n",
+        "      \n",
+        "      uploaded = drive.CreateFile({'title': word + '.mp3', \"parents\": [{\"kind\": \"drive#fileLink\",\"id\": \"FOLDER_ID_TO_SAVE_FILES\"}]})\n",
+        "      uploaded.SetContentFile( word + '_final.mp3')\n",
+        "      uploaded.Upload()\n",
+        "      print('Uploaded file with ID {}'.format(uploaded.get('id')))\n",
+        "\n",
+        "    except Exception as e:\n",
+        "      print(e)\n",
+        "      pass"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    }
+  ]
+}
